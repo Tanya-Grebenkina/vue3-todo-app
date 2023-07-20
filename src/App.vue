@@ -1,17 +1,56 @@
 <script>
-import todos from './data/todos';
+import StatusFilter from './components/StatusFilter.vue';
+import TodoItem from './components/TodoItem.vue';
 
 export default {
+  components: {
+    StatusFilter,
+    TodoItem,
+  },
+
   data() {
+    let todos = [];
+
+    try {
+      todos = JSON.parse(localStorage.getItem('todos') || '[]');
+    } catch (e) {}
+
     return {
       todos,
       title: '',
+      status: 'all',
     };
   },
- 
+
   computed: {
     activeTodos() {
-      return this.todos.filter(todo => !todo.completed)
+      return this.todos.filter((todo) => !todo.completed);
+    },
+
+    completedTodos() {
+      return this.todos.filter((todo) => todo.completed);
+    },
+
+    visibleTodos() {
+      switch (this.status) {
+        case 'Active':
+          return this.activeTodos;
+
+        case 'Completed':
+          return this.completedTodos;
+
+        default:
+          return this.todos;
+      }
+    },
+  },
+
+  watch: {
+    todos: {
+      deep: true,
+      handler() {
+        localStorage.setItem('todos', JSON.stringify(this.todos));
+      },
     },
   },
 
@@ -25,7 +64,11 @@ export default {
 
       this.title = '';
     },
-  }
+
+    handleChangeStatusLink(currentStatus) {
+      this.status = currentStatus;
+    },
+  },
 };
 </script>
 
@@ -35,80 +78,41 @@ export default {
 
     <div class="todoapp__content">
       <header class="todoapp__header">
-        <button class="todoapp__toggle-all" :class="{active : !!activeTodos.length}"></button>
+        <button
+          class="todoapp__toggle-all"
+          :class="{ active: !!activeTodos.length }"></button>
 
         <form @submit.prevent="handleSubmit">
           <input
             type="text"
             class="todoapp__new-todo"
             placeholder="What needs to be done?"
-            v-model="title"
-          />
+            v-model="title" />
         </form>
       </header>
 
-      <section class="todoapp__main">
-        <div
-          v-for="todo, idx of todos"
+      <TransitionGroup
+        name="list"
+        tag="section"
+        class="todoapp__main">
+        <TodoItem
+          v-for="todo of visibleTodos"
           :key="todo.id"
-          class="todo"
-          :class="{ completed: todo.completed }"
-        >
-          <label class="todo__status-label"> 
-            <input
-              type="checkbox"
-              class="todo__status"
-              v-model="todo.completed"
-            />
-          </label>
-
-          <form v-if="false">
-            <input
-              type="text"
-              class="todo__title-field" 
-              placeholder="Empty todo will be deleted"
-              value="Todo is being edited now"
-            />
-          </form>
-
-         <template v-else>
-          <span class="todo__title">{{ todo.title }}</span>
-          <button class="todo__remove" @click="todos.splice(idx, 1)">x</button>
-         </template>
-
-          <div
-            class="modal overlay"
-            :class="{ 'is-active': false }">
-            <div class="modal-background has-background-white-ter"></div>
-            <div class="loader"></div>
-          </div>
-        </div>
-      </section>
+          :todo="todo"
+          @update="Object.assign(todo, $event)"
+          @removeTodo="todos.splice(todos.indexOf(todo), 1)" />
+      </TransitionGroup>
 
       <footer class="todoapp__footer">
         <span class="todo-count"> {{ activeTodos.length }} items left </span>
 
-        <nav class="filter">
-          <a
-            href="#/"
-            class="filter__link selected">
-            All
-          </a>
+        <StatusFilter v-model="status" />
 
-          <a
-            href="#/active"
-            class="filter__link">
-            Active
-          </a>
-
-          <a
-            href="#/completed"
-            class="filter__link">
-            Completed
-          </a>
-        </nav>
-
-        <button class="todoapp__clear-completed" v-if="activeTodos.length > 0">Clear completed</button>
+        <button
+          class="todoapp__clear-completed"
+          v-if="activeTodos.length > 0">
+          Clear completed
+        </button>
       </footer>
     </div>
 
@@ -122,3 +126,17 @@ export default {
     </article>
   </div>
 </template>
+
+<style>
+.list-enter-active,
+.list-leave-active {
+  max-height: 60px;
+  transition: all 0.5s ease;
+}
+.list-enter-from,
+.list-leave-to {
+  opacity: 0;
+  max-height: 0;
+  transform: scaleY(0);
+}
+</style>
