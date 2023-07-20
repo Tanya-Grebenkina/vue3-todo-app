@@ -1,24 +1,22 @@
 <script>
 import StatusFilter from './components/StatusFilter.vue';
 import TodoItem from './components/TodoItem.vue';
+import TheMessage from './components/TheMessage.vue';
+import { getTodos, createTodos, updateTodos, removeTodo } from './api/todos';
 
 export default {
   components: {
     StatusFilter,
     TodoItem,
+    TheMessage,
   },
 
   data() {
-    let todos = [];
-
-    try {
-      todos = JSON.parse(localStorage.getItem('todos') || '[]');
-    } catch (e) {}
-
     return {
-      todos,
+      todos: [],
       title: '',
       status: 'all',
+      errorMessage: '',
     };
   },
 
@@ -45,28 +43,38 @@ export default {
     },
   },
 
-  watch: {
-    todos: {
-      deep: true,
-      handler() {
-        localStorage.setItem('todos', JSON.stringify(this.todos));
-      },
-    },
+  mounted() {
+    getTodos()
+      .then(({ data }) => {
+        this.todos = data;
+      })
+      .catch(() => {
+        this.errorMessage = 'Unable to load todos';
+      });
   },
 
   methods: {
     handleSubmit() {
-      this.todos.push({
-        id: Date.now(),
-        title: this.title,
-        completed: false,
+      createTodos(this.title).then(({ data }) => {
+        this.todos = [...this.todos, data];
+        this.title = '';
       });
-
-      this.title = '';
     },
 
     handleChangeStatusLink(currentStatus) {
       this.status = currentStatus;
+    },
+
+    updateTodoOnServer({ id, title, completed }) {
+      updateTodos({ id, title, completed }).then(({ data }) => {
+        this.todos = this.todos.map((todo) => (todo.id !== id ? todo : data));
+      });
+    },
+
+    removeTodoFromServer(todoId) {
+      removeTodo(todoId).then(() => {
+        this.todos = this.todos.filter((todo) => todo.id !== todoId);
+      });
     },
   },
 };
@@ -99,8 +107,8 @@ export default {
           v-for="todo of visibleTodos"
           :key="todo.id"
           :todo="todo"
-          @update="Object.assign(todo, $event)"
-          @removeTodo="todos.splice(todos.indexOf(todo), 1)" />
+          @update="updateTodoOnServer"
+          @removeTodo="removeTodoFromServer(todo.id)" />
       </TransitionGroup>
 
       <footer class="todoapp__footer">
@@ -116,14 +124,19 @@ export default {
       </footer>
     </div>
 
-    <article class="message is-danger message--hidden">
-      <div class="message-header">
-        <p>Error</p>
-        <button class="delete"></button>
-      </div>
+    <TheMessage
+      class="is-warning"
+      :active="errorMessage !== ''"
+      @hide="errorMessage = ''"
+    >
+      <template #default>
+        <p>{{ errorMessage }}</p>
+      </template>
 
-      <div class="message-body">Unable to add a Todo</div>
-    </article>
+      <template #header>
+        <p>Error warning</p>
+      </template>
+    </TheMessage>
   </div>
 </template>
 
